@@ -1,0 +1,5 @@
+---
+ignored:
+  - DL3005
+  - DL3008
+no-color: true

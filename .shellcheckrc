@@ -1,0 +1,3 @@
+# Don't follow sourced scripts
+disable=SC1090
+disable=SC1091

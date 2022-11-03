@@ -1,0 +1,9 @@
+# Run `codespell -h` for details
+# Also, see: https://github.com/codespell-project/codespell#using-a-config-file
+[codespell]
+builtin = clear,rare,code
+# Add any false positives in all lowercase to a comma-separated list here:
+ignore-words-list = selectin,cmo,pullrequest,deque,falsy,truthy
+interactive = 0
+quiet-level = 3
+skip = CHANGELOG.md,*.csv,*.db,*.json,*.lock,*.xml,.cache,.git,.hypothesis,.idea,*__pycache__,.run,.venv,.vscode

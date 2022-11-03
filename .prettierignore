@@ -1,0 +1,6 @@
+# Ignore yaml files linted by other tools:
+*.yaml
+*.yml
+
+# Ignore the changelog
+HISTORY.md

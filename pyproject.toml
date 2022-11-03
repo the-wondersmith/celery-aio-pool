@@ -1,0 +1,233 @@
+[tool.poetry]
+name = "celery-aio-pool"
+version = "0.1.0-rc.0"  # x-release-please-version
+description = "Celery worker pool with support for asyncio coroutines as tasks"
+license = "AGPL-3.0-or-later"
+authors = [
+  "Mark S. <the@wondersmithd.dev>",
+  "Shaheed Haque <shaheedhaque@gmail.com>",
+]
+readme = "README.md"
+homepage = "https://github.com/the-wondersmith/celery-aio-pool"
+repository = "https://github.com/the-wondersmith/celery-aio-pool"
+documentation = "https://github.com/the-wondersmith/celery-aio-pool"
+packages = [
+    { include = "celery_aio_pool" },
+]
+keywords = [
+    "pool",
+    "celery",
+    "asyncio",
+    "concurrency",
+    "background-jobs",
+]
+classifiers = [
+  "Natural Language :: English",
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+]
+
+
+[tool.poetry.dependencies]
+# Supported Python versions
+python = ">=3.8,<3.11"
+
+# Core project dependencies
+celery = "^5"
+
+
+[tool.poetry.group.dev.dependencies]
+# Formatting & Linting
+black = "*"
+codespell = ">= 2.1, < 2.2.2"
+docformatter = ">=1.4"
+flake8 = ">=5"
+flake8-bugbear = ">=22"
+flake8-docstrings = ">=1.6"
+isort = { version = "^5", extras = [ "colors" ] }
+mypy = "*"
+pre-commit = ">=2"
+pre-commit-hooks = ">=4"
+pydocstyle = "*"
+pylint = "*"
+
+# Testing
+anyio = "*"
+pytest = "^7"
+pytest-cov = "^3"
+pytest-describe = "^2"
+
+# Reports & Logging
+coverage = { version = "^6", extras = ["toml"] }
+
+
+[tool.pytest.ini_options]
+minversion = "7.1"
+addopts = '''
+--disable-pytest-warnings
+--strict-markers
+--cov
+--cov-config=pyproject.toml
+--cov-report html
+--no-cov-on-fail
+-r
+fEsxp
+'''
+cache_dir = "./.cache"
+collect_ignore = [
+    "setup.py",
+]
+doctest_optionflags = [
+    "ALLOW_BYTES",
+    "ALLOW_UNICODE",
+    "NORMALIZE_WHITESPACE",
+]
+testpaths = [
+    "tests",
+]
+markers = [
+    "descriptor",
+    "description",
+    "describe_nested",
+]
+python_classes = [
+    "Test*",
+    "Describe*",
+]
+python_functions = [
+    "test_*",
+    "describe_*",
+]
+
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+
+
+[tool.coverage.run]
+branch = true
+parallel = true
+disable_warnings = ["no-data-collected"]
+source = ["celery_aio_pool"]
+omit = [
+    ".git",
+    ".tox/*",
+    "conf/*",
+    "venv/*",
+    "tests/*",
+    "scratch*.py",
+]
+
+
+[tool.black]
+color = true
+safe = true
+line-length = 120
+target-version = ["py310"]
+skip-string-normalization = false
+
+
+[tool.isort]
+profile = "black"
+atomic = true
+py_version = 310
+verbose = false
+remove_redundant_aliases = true
+ensure_newline_before_comments = true
+color_output = true
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 2
+use_parentheses = true
+line_length = 120
+combine_as_imports = true
+honor_noqa = true
+skip_gitignore = true
+default_section = "THIRDPARTY"
+known_first_party = ["celery_aio_pool", "tests"]
+import_heading_future = "Future Imports"
+import_heading_stdlib = "Standard Library Imports"
+import_heading_thirdparty = "Third-Party Imports"
+import_heading_firstparty = "Package-Level Imports"
+import_heading_localfolder = "Imports From Package Sub-Modules"
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+src_paths = ["celery_aio_pool", "tests"]
+
+
+[tool.pylint.master]
+jobs = 0
+persistent = false
+
+
+[tool.pylint.format]
+max-module-lines = 3000
+
+
+[tool.pylint.messages_control]
+disable = [
+    # Message Categories
+    "C",  # convention checks
+    "R",  # refactoring checks
+    "W",  # various warnings
+    # Handled by pre-commit-hooks
+    "trailing-whitespace",
+    "missing-final-newline",
+    # Handled by flake8
+    "line-too-long",
+    "unused-import",
+    "unused-variable",
+    "too-many-branches",
+    "undefined-variable",
+    # Handled by isort
+    "wrong-import-order",
+    # Specific Messages
+    "no-member",
+    "bare-except",
+    "file-ignored",
+    "invalid-name",
+    "bad-super-call",
+    "unused-argument",
+    "locally-disabled",
+    "bad-inline-option",
+    "deprecated-pragma",
+    "no-name-in-module",
+    "raw-checker-failed",
+    "suppressed-message",
+    "useless-suppression",
+    "c-extension-no-member",
+    "use-symbolic-message-instead",
+]
+
+
+[tool.pylint.reports]
+score = false
+
+
+[tool.mypy]
+cache_dir = ".cache/mypy/"
+check_untyped_defs = true
+error_summary = true
+exclude = "/tests/"
+ignore_errors = true
+ignore_missing_imports = true
+install_types = false
+follow_imports = "silent"
+strict = false
+pretty = true
+python_version = 3.10
+show_column_numbers = true
+show_error_codes = true
+show_error_context = true
+show_none_errors = false
+strict_optional = false
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
