@@ -16,7 +16,10 @@
     { "type": "build", "section": "Build System" },
     { "type": "ci", "section": "Continuous Integration" }
   ],
-  "extra-files": ["celery_pool_asyncio/__init__.py"],
+  "extra-files": [
+    "pyproject.toml",
+    "celery_pool_asyncio/__init__.py"
+  ],
   "packages": {
     ".": {
       "release-type": "python"

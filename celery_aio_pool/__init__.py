@@ -11,7 +11,7 @@ from celery_aio_pool.pool import AsyncIOPool
 from celery_aio_pool.tracer import build_async_tracer
 
 __pkg_name__ = "celery-aio-pool"
-__version__ = "0.1.0-rc.0"  # x-release-please-version
+__version__ = "0.1.0-rc.1"  # x-release-please-version
 
 __all__ = (
     "AsyncIOPool",
@@ -26,11 +26,13 @@ def patch_celery_tracer() -> bool:
     # Third-Party Imports
     import celery.app.trace
 
-    celery.app.trace.warn(
-        "Replacing Celery's default `build_tracer` utility w/ `build_async_tracer` from celery-aio-pool"
-    )
+    if celery.app.trace.build_tracer is not build_async_tracer:
+        celery.app.trace.warn(
+            "Replacing Celery's default `build_tracer` utility "
+            "w/ `build_async_tracer` from celery-aio-pool"
+        )
 
-    celery.app.trace.build_tracer = build_async_tracer
+        celery.app.trace.build_tracer = build_async_tracer
 
     return celery.app.trace.build_tracer is build_async_tracer
 
