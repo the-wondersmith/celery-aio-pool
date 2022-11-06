@@ -138,14 +138,16 @@ class AsyncIOPool(celery.concurrency.solo.TaskPool):
         aio.set_event_loop(self.loop)
 
     def _get_info(self) -> WorkerPoolInfo:
-        return {
+        info = super()._get_info()
+        info.update({
             "timeouts": (),
             "max-concurrency": 1,
-            "event-loop": self.loop,
+            "event-loop": str(self.loop),
             "max-tasks-per-child": None,
             "processes": (os.getpid(),),
             "put-guarded-by-semaphore": True,
-        }
+        })
+        return info
 
     def run(
         self,
