@@ -38,11 +38,12 @@ poetry run pytest tests/
 ### Configure Celery ###
 
 At the time of writing, [Celery](https://github.com/celery/celery) does not have
-built-in support for out-of-tree pools like the Celery Async IOPool. There is a
-[PR #7880](https://github.com/celery/celery/pull/7880) to add this capability.
+built-in support for out-of-tree pools like the Celery Async IOPool, but it should
+be included from 5.3. ([PR #7880](https://github.com/celery/celery/pull/7880) has
+been merged).
 
-Pending the PR being merged, if you apply the patch, you will be able to configure
-the pool like this:
+After the 5.3 release, or if you apply the patch from the PR, you will be able to
+configure the pool like this:
 
 - Set the environment variable CELERY_CUSTOM_WORKER_POOL to the name of
     an implementation of :class:celery.concurrency.base.BasePool in the
