@@ -10,3 +10,55 @@
 - Free software: GNU Affero General Public License v3+
 
 ## Coming Soon™
+
+
+## Get started ##
+
+### Install using pip from PyPI.org ###
+
+```
+pip install celery-aio-pool
+```
+
+### Install and test using poetry ###
+
+We use [poetry](https://python-poetry.org/) for packaging and dependency management,
+which you may need to [install](https://python-poetry.org/docs/#installing-with-the-official-installer).
+Now you can install the Celery Async IOPool:
+```
+git clone git@github.com:<username>/celery-aio-pool.git
+cd celery-aio-pool
+poetry install
+```
+To run the tests:
+```
+poetry run pytest tests/
+```
+
+### Configure Celery ###
+
+At the time of writing, [Celery](https://github.com/celery/celery) does not have
+built-in support for out-of-tree pools like the Celery Async IOPool, but it should
+be included from 5.3. ([PR #7880](https://github.com/celery/celery/pull/7880) has
+been merged).
+
+After the 5.3 release, or if you apply the patch from the PR, you will be able to
+configure the pool like this:
+
+- Set the environment variable CELERY_CUSTOM_WORKER_POOL to the name of
+    an implementation of :class:celery.concurrency.base.BasePool in the
+    standard Celery format of "package:class".
+
+- Select this pool using '--pool custom'.
+
+To verify the pool implementation, examine the output of the `celery inspect stats`
+command:
+```
+$ celery -A ... inspect stats
+->  celery@freenas: OK
+    {
+        ...
+        "pool": {
+           ...
+            "implementation": "celery_aio_pool.pool:AsyncIOPool",
+```
