@@ -196,6 +196,10 @@ def build_async_tracer(
                 kwargs=kwargs,
             )
 
+            # TODO(the-wondersmith): Investigate if there are any potential
+            #                        side effects of performing this update
+            task.request.update(task_request.__dict__)
+
             redelivered = task_request.delivery_info and task_request.delivery_info.get(
                 "redelivered",
                 False,
