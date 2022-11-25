@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "celery-aio-pool"
-version = "0.1.0-rc.1"  # x-release-please-version
+version = "0.1.0-rc.3"  # x-release-please-version
 description = "Celery worker pool with support for asyncio coroutines as tasks"
 license = "AGPL-3.0-or-later"
 authors = [
