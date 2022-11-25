@@ -6,7 +6,7 @@
 ![format](https://img.shields.io/pypi/format/celery-aio-pool.svg)
 
 <p align="center" width="100%">
-    <img width="55%" src="icon.svg">
+    <img width="55%" src="https://raw.githubusercontent.com/the-wondersmith/celery-aio-pool/main/icon.svg">
 </p>
 
 > Free software: GNU Affero General Public License v3+
