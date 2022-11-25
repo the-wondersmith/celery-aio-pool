@@ -15,10 +15,11 @@ from typing import (
     Any,
     Generator,
 )
+from uuid import UUID
 
 # Third-Party Imports
-import celery
-import celery.apps.worker
+import celery  # noqaL F401
+import celery.concurrency.prefork
 import pytest
 
 # Package-Level Imports
@@ -81,6 +82,37 @@ session_app: celery.Celery = celery.Celery(
 )
 
 
+def _request_attributes(request: Any) -> dict[str, bool]:
+    """Extract the commonly used / referenced attributes of the supplied `Task`
+    request and inspect them for validity."""
+
+    host, info = request.hostname, request.delivery_info
+
+    try:
+        task_id, root_id, correlation_id = map(
+            UUID,
+            (
+                request.id,
+                request.root_id,
+                request.correlation_id,
+            ),
+        )
+    except (ValueError, TypeError, AttributeError):
+        task_id, root_id, correlation_id = (
+            None,
+            None,
+            None,
+        )
+
+    return {
+        "id": bool(task_id),
+        "root_id": bool(root_id),
+        "correlation_id": bool(correlation_id),
+        "hostname": host and isinstance(host, str),
+        "delivery_info": info and isinstance(info, dict),
+    }
+
+
 @session_app.task
 def _sync_task(data: str) -> str:
     """A simple dummy function."""
@@ -99,6 +131,18 @@ async def _async_task(data: str) -> str:
     data = data.upper()
 
     return data
+
+
+@session_app.task(bind=True)
+def _bound_sync_task(self: celery.Task) -> dict[str, bool]:
+    """Guard against malformed / improperly populated request objects."""
+    return _request_attributes(request=self.request)
+
+
+@session_app.task(bind=True)
+async def _bound_async_task(self: celery.Task) -> dict[str, bool]:
+    """Guard against malformed / improperly populated request objects."""
+    return _request_attributes(request=self.request)
 
 
 def _run_celery_worker() -> None:
@@ -143,6 +187,18 @@ def sync_task() -> Generator[celery.Task, None, None]:
 def async_task() -> Generator[celery.Task, None, None]:
     """A session-scoped async Celery `Task`."""
     yield _async_task
+
+
+@pytest.fixture(scope="session", autouse=True)
+def bound_sync_task() -> Generator[celery.Task, None, None]:
+    """A session-scoped Celery `Task` with `bind=True` enabled."""
+    yield _bound_sync_task
+
+
+@pytest.fixture(scope="session", autouse=True)
+def bound_async_task() -> Generator[celery.Task, None, None]:
+    """A session-scoped async Celery `Task` with `bind=True` enabled."""
+    yield _bound_async_task
 
 
 @pytest.fixture(scope="session", autouse=True)

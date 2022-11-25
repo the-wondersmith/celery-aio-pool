@@ -6,11 +6,9 @@ from __future__ import annotations
 # Standard Library Imports
 import asyncio as aio
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Coroutine,
-    TypeVar,
 )
 
 # Third-Party Imports
@@ -74,6 +72,18 @@ def describe_sync_tasks() -> None:
         reply = result.get(timeout=60)
 
         assert reply == message.upper()
+
+    @pytest.mark.description
+    def when_task_binding_is_enabled(bound_sync_task: celery.Task) -> None:
+        """Test that the `request` attribute of the `self` instance passed to
+        Celery `Task`-wrapped regular (synchronous) functions is fully
+        populated when `bind=true` is passed to the task decorator."""
+
+        result: celery.result.AsyncResult = bound_sync_task.delay()
+
+        reply: dict[str, bool] = result.get(timeout=60)
+
+        assert all(reply.values()), str(reply)
 
 
 @pytest.mark.descriptor
@@ -139,3 +149,15 @@ def describe_async_tasks() -> None:
         reply = result.get(timeout=60)
 
         assert reply == message.upper()
+
+    @pytest.mark.description
+    def when_task_binding_is_enabled(bound_async_task: celery.Task) -> None:
+        """Test that the `request` attribute of the `self` instance passed to
+        Celery `Task`-wrapped coroutine (async) functions is fully populated
+        when `bind=true` is passed to the task decorator."""
+
+        result: celery.result.AsyncResult = bound_async_task.delay()
+
+        reply: dict[str, bool] = result.get(timeout=60)
+
+        assert all(reply.values()), str(reply)
