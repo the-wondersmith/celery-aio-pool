@@ -5,60 +5,142 @@
 ![downloads](https://img.shields.io/pypi/dm/celery-aio-pool.svg)
 ![format](https://img.shields.io/pypi/format/celery-aio-pool.svg)
 
-![Logo](https://repository-images.githubusercontent.com/198568368/35298e00-c1e8-11e9-8bcf-76c57ee28db8)
+<p align="center" width="100%">
+    <img width="55%" src="icon.svg">
+</p>
 
-- Free software: GNU Affero General Public License v3+
+> Free software: GNU Affero General Public License v3+
 
-## Coming Soon™
+## Getting Started
 
+### Installation
 
-## Get started ##
+#### Using Poetry _(preferred)_
 
-### Install using pip from PyPI.org ###
+```
+poetry add celery-aio-pool
+```
+
+#### Using `pip` & [PyPI.org](https://pypi.org/project/celery-aio-pool/)
 
 ```
 pip install celery-aio-pool
 ```
 
-### Install and test using poetry ###
+#### Using `pip` & [GitHub](https://github.com/the-wondersmith/celery-aio-pool.git)
 
-We use [poetry](https://python-poetry.org/) for packaging and dependency management,
-which you may need to [install](https://python-poetry.org/docs/#installing-with-the-official-installer).
-Now you can install the Celery Async IOPool:
 ```
-git clone git@github.com:<username>/celery-aio-pool.git
+pip install git+https://github.com/the-wondersmith/celery-aio-pool.git
+```
+
+### Using `pip` & A Local Copy Of The Repo
+
+```
+git clone https://github.com/the-wondersmith/celery-aio-pool.git
 cd celery-aio-pool
-poetry install
-```
-To run the tests:
-```
-poetry run pytest tests/
+pip install -e "$(pwd)"
 ```
 
-### Configure Celery ###
+
+### Configure Celery
+
+#### Using `celery-aio-pool`'s Provided Patcher _(non-preferred)_
+
+- Import `celery_aio_pool` in the same module where your Celery "app" is defined
+- Ensure that the `patch_celery_tracer` utility is called **_before_** any other
+  Celery code is called
+
+```python
+"""My super awesome Celery app."""
+
+# ...
+from celery import Celery
+
+# add the following import
+import celery_aio_pool as aio_pool
+
+# ensure the patcher is called *before*
+# your Celery app is defined
+
+assert aio_pool.patch_celery_tracer() is True
+
+app = Celery(
+    "my-super-awesome-celery-app",
+    broker="amqp://guest@localhost//",
+    # add the following keyword argument
+    worker_pool=aio_pool.pool.AsyncIOPool,
+)
+```
+
+#### Using (Upcoming) _Out-Of-Tree_ Worker Pool _(preferred)_
 
 At the time of writing, [Celery](https://github.com/celery/celery) does not have
-built-in support for out-of-tree pools like the Celery Async IOPool, but it should
-be included from 5.3. ([PR #7880](https://github.com/celery/celery/pull/7880) has
-been merged).
+built-in support for out-of-tree pools like `celery-aio-pool`, but support should
+be included starting with the first non-beta release of Celery 5.3. (note: [PR #7880](https://github.com/celery/celery/pull/7880) was merged on `2022-11-15`).
 
-After the 5.3 release, or if you apply the patch from the PR, you will be able to
-configure the pool like this:
+The official release of Celery 5.3 enables the configuration of custom worker pool classes thusly:
 
-- Set the environment variable CELERY_CUSTOM_WORKER_POOL to the name of
-    an implementation of :class:celery.concurrency.base.BasePool in the
-    standard Celery format of "package:class".
+- Set the environment variable `CELERY_CUSTOM_WORKER_POOL` to the name of
+  your desired worker pool implementation implementation.
+  - **NOTE:** _The value of the environment variable must be formatted in
+              the standard Python/Celery format of_ `package:class`
+  - ```bash
+    % export CELERY_CUSTOM_WORKER_POOL='celery_aio_pool.pool:AsyncIOPool'
+    ```
 
-- Select this pool using '--pool custom'.
+- Tell Celery to use your desired pool by specifying `--pool=custom` when running your worker instance(s)
+  - ```bash
+    % celery worker --pool=custom --loglevel=INFO --logfile="$(pwd)/worker.log"
+    ```
 
 To verify the pool implementation, examine the output of the `celery inspect stats`
 command:
-```
-$ celery -A ... inspect stats
+
+```bash
+% celery --app=your_celery_project inspect stats
 ->  celery@freenas: OK
     {
         ...
         "pool": {
            ...
             "implementation": "celery_aio_pool.pool:AsyncIOPool",
+    ...
 ```
+
+
+## Developing / Testing / Contributing
+
+> **NOTE:** _Our preferred packaging and dependency manager is [Poetry](https://python-poetry.org/)._
+>           _Installation instructions can be found [here](https://python-poetry.org/docs/#installing-with-the-official-installer)._
+
+### Developing
+
+Clone the repo and install the dependencies
+```bash
+$ git clone https://github.com/the-wondersmith/celery-aio-pool.git \
+  && cd celery-aio-pool \
+  && poetry install --sync
+```
+
+Optionally, if you do not have or prefer _not_ to use Poetry, `celery-aio-pool` is
+fully PEP-517 compliant and can be installed directly by any PEP-517-compliant package
+manager.
+
+```bash
+$ cd celery-aio-pool \
+  && pip install -e "$(pwd)"
+```
+
+> **TODO:** _Coming Soon™_
+
+### Testing
+
+To run the test suite:
+
+```bash
+$ poetry run pytest tests/
+```
+
+### Contributing
+
+> **TODO:** _Coming Soon™_
