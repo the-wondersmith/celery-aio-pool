@@ -34,6 +34,13 @@ def patch_celery_tracer() -> bool:
 
         celery.app.trace.build_tracer = build_async_tracer
 
+    #
+    # The "stack protections" installed by :func:`celery.app.trace.setup_worker_optimizations`
+    # cause the :class:`celery.Task` provided to bound task functions (i.e.
+    # decorated with "@celery_app.task(bind=True)" to be malformed.
+    # TODO: find out if this is the correct fix for that problem.
+    #
+    celery.app.trace.reset_worker_optimizations()
     return celery.app.trace.build_tracer is build_async_tracer
 
 
