@@ -145,7 +145,6 @@ def build_async_tracer(
     def on_error(
             request: celery.app.task.Context,
             exc: AnyException,
-            uuid: str,
             state: str = FAILURE,
             call_errbacks: bool = True) -> Tuple[Info, Any, Any, Any]:
         """Handle any errors raised by a `Task`'s execution."""
@@ -306,7 +305,7 @@ def build_async_tracer(
                             uuid, retval, task_request, publish_result,
                         )
                     except EncodeError as exc:
-                        I, R, state, retval = on_error(task_request, exc, uuid)
+                        I, R, state, retval = on_error(task_request, exc)
                     else:
                         Rstr = saferepr(R, resultrepr_maxsize)
                         T = monotonic() - time_start
@@ -358,7 +357,7 @@ def build_async_tracer(
             R = report_internal_error(task, exc)
             if task_request is not None:
                 I, _, _, _ = AsyncIOPool.run_in_pool(on_error, task_request,
-                                                     exc, uuid)
+                                                     exc)
         return trace_ok_t(R, I, T, Rstr)
 
     return trace_task
