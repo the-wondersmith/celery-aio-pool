@@ -1,4 +1,4 @@
-"""A custom implementation of Celery's built-in `celery.app.trace.build_tracer`
+"""A custom implementation of Celery's built-in `build_tracer`
 utility."""
 
 # pylint: unused-argument
@@ -13,9 +13,13 @@ import time
 from typing import (
     Any,
     Callable,
+    Dict,
+    FrozenSet,
     Optional,
     Sequence,
+    Tuple,
     Type,
+    Union,
 )
 
 # Third-Party Imports
@@ -27,6 +31,11 @@ import celery.canvas
 import celery.exceptions
 import celery.loaders
 import celery.loaders.app
+from celery.app.trace import AsyncResult, BackendGetMetaError, Context, EncodeError, ExceptionInfo, FAILURE, \
+    gethostname, get_task_name, group, Ignore, IGNORED, IGNORE_STATES, info, InvalidTaskError, logger, LOG_IGNORED, \
+    LOG_SUCCESS, Reject, REJECTED, report_internal_error, Retry, RETRY, safe_repr, saferepr, send_postrun, send_prerun, \
+    send_success, _signal_internal_error, signals, STARTED, SUCCESS, successful_requests, task_has_custom, _task_stack, \
+    traceback_clear, TraceInfo, trace_ok_t
 
 # Package-Level Imports
 from celery_aio_pool.types import AnyException
@@ -36,19 +45,19 @@ __all__ = ("build_async_tracer",)
 
 # noinspection PyUnusedLocal
 def build_async_tracer(
-    name: str,
-    task: celery.Task | celery.local.PromiseProxy,
-    loader: Optional[celery.loaders.app.AppLoader] = None,
-    hostname: Optional[str] = None,
-    store_errors: bool = True,
-    Info: Type[celery.app.trace.TraceInfo] = celery.app.trace.TraceInfo,
-    eager: bool = False,
-    propagate: bool = False,
-    app: Optional[celery.Celery] = None,
-    monotonic: Callable[[], int] = time.monotonic,
-    trace_ok_t: Type[celery.app.trace.trace_ok_t] = celery.app.trace.trace_ok_t,
-    IGNORE_STATES: frozenset[str] = celery.app.trace.IGNORE_STATES,
-) -> Callable[[str, tuple[Any, ...], dict[str, Any], Any], celery.app.trace.trace_ok_t]:
+        name: str,
+        task: Union[celery.Task, celery.local.PromiseProxy],
+        loader: Optional[celery.loaders.app.AppLoader] = None,
+        hostname: Optional[str] = None,
+        store_errors: bool = True,
+        Info: Type[TraceInfo] = TraceInfo,
+        eager: bool = False,
+        propagate: bool = False,
+        app: Optional[celery.Celery] = None,
+        monotonic: Callable[[], int] = time.monotonic,
+        trace_ok_t: Type[trace_ok_t] = trace_ok_t,
+        IGNORE_STATES: FrozenSet[str] = IGNORE_STATES) -> \
+        Callable[[str, tuple[Any, ...], dict[str, Any], Any], trace_ok_t]:
     """Return a function that traces task execution.
 
     Catches all exceptions and updates result backend with the
@@ -77,26 +86,24 @@ def build_async_tracer(
     # If the task doesn't define a custom __call__ method
     # we optimize it away by simply calling the run method directly,
     # saving the extra method call and a line less in the stack trace.
-    fun = task if celery.app.trace.task_has_custom(task, "__call__") else task.run
+    fun = task if task_has_custom(task, '__call__') else task.run
 
     loader = loader or app.loader
     ignore_result = task.ignore_result
     track_started = task.track_started
     track_started = not eager and (task.track_started and not ignore_result)
 
-    publish_result = (
-        True
-        if (eager and not ignore_result and task.store_eager_result)
-        else bool(not eager and not ignore_result)
-    )
+    # #6476
+    if eager and not ignore_result and task.store_eager_result:
+        publish_result = True
+    else:
+        publish_result = not eager and not ignore_result
 
-    deduplicate_successful_tasks = (
-        (app.conf.task_acks_late or task.acks_late)
-        and app.conf.worker_deduplicate_successful_tasks
-        and app.backend.persistent
-    )
+    deduplicate_successful_tasks = ((app.conf.task_acks_late or task.acks_late)
+                                    and app.conf.worker_deduplicate_successful_tasks
+                                    and app.backend.persistent)
 
-    hostname = hostname or celery.app.trace.gethostname()
+    hostname = hostname or gethostname()
     inherit_parent_priority = app.conf.task_inherit_parent_priority
 
     loader_task_init = loader.on_task_init
@@ -105,14 +112,11 @@ def build_async_tracer(
     task_before_start = None
     task_on_success = None
     task_after_return = None
-
-    if celery.app.trace.task_has_custom(task, "before_start"):
+    if task_has_custom(task, 'before_start'):
         task_before_start = task.before_start
-
-    if celery.app.trace.task_has_custom(task, "on_success"):
+    if task_has_custom(task, 'on_success'):
         task_on_success = task.on_success
-
-    if celery.app.trace.task_has_custom(task, "after_return"):
+    if task_has_custom(task, 'after_return'):
         task_after_return = task.after_return
 
     pid = os.getpid()
@@ -120,14 +124,14 @@ def build_async_tracer(
     request_stack = task.request_stack
     push_request = request_stack.push
     pop_request = request_stack.pop
-    push_task = celery.app.trace._task_stack.push
-    pop_task = celery.app.trace._task_stack.pop
-    _does_info = celery.app.trace.logger.isEnabledFor(logging.INFO)
-    result_repr_maxsize = task.resultrepr_maxsize
+    push_task = _task_stack.push
+    pop_task = _task_stack.pop
+    _does_info = logger.isEnabledFor(logging.INFO)
+    resultrepr_maxsize = task.resultrepr_maxsize
 
-    pre_run_receivers = celery.app.trace.signals.task_prerun.receivers
-    post_run_receivers = celery.app.trace.signals.task_postrun.receivers
-    success_receivers = celery.app.trace.signals.task_success.receivers
+    prerun_receivers = signals.task_prerun.receivers
+    postrun_receivers = signals.task_postrun.receivers
+    success_receivers = signals.task_success.receivers
 
     # Third-Party Imports
     from celery import canvas
@@ -139,33 +143,24 @@ def build_async_tracer(
 
     # noinspection PyUnusedLocal
     def on_error(
-        request: celery.app.task.Context,
-        exc: AnyException,
-        uuid: str,
-        state: str = celery.app.trace.FAILURE,
-        call_errbacks: bool = True,
-    ) -> tuple[Info, Any, Any, Any]:
+            request: celery.app.task.Context,
+            exc: AnyException,
+            state: str = FAILURE,
+            call_errbacks: bool = True) -> Tuple[Info, Any, Any, Any]:
         """Handle any errors raised by a `Task`'s execution."""
-
         if propagate:
             raise
-
         I = Info(state, exc)
         R = I.handle_error_state(
-            task,
-            request,
-            eager=eager,
-            call_errbacks=call_errbacks,
+            task, request, eager=eager, call_errbacks=call_errbacks,
         )
-
         return I, R, I.state, I.retval
 
     def trace_task(
-        uuid: str,
-        args: Sequence[Any],
-        kwargs: dict[str, Any],
-        request: Optional[dict[str, Any]] = None,
-    ) -> trace_ok_t:
+            uuid: str,
+            args: Sequence[Any],
+            kwargs: Dict[str, Any],
+            request: Optional[Dict[str, Any]] = None) -> trace_ok_t:
         """Execute and trace a `Task`."""
 
         # R      - is the possibly prepared return value.
@@ -182,143 +177,82 @@ def build_async_tracer(
         R = I = T = Rstr = retval = state = None
         task_request = None
         time_start = monotonic()
-
         try:
             try:
                 callable(kwargs.items)
             except AttributeError:
-                raise celery.app.trace.InvalidTaskError("Task keyword arguments is not a mapping")
+                raise InvalidTaskError(
+                    'Task keyword arguments is not a mapping')
 
-            task_request = celery.app.trace.Context(
-                request or {},
-                args=args,
-                called_directly=False,
-                kwargs=kwargs,
-            )
+            task_request = Context(request or {}, args=args,
+                                   called_directly=False, kwargs=kwargs)
 
             # TODO(the-wondersmith): Investigate if there are any potential
             #                        side effects of performing this update
             task.request.update(task_request.__dict__)
 
-            redelivered = task_request.delivery_info and task_request.delivery_info.get(
-                "redelivered",
-                False,
-            )
-
+            redelivered = (task_request.delivery_info
+                           and task_request.delivery_info.get('redelivered', False))
             if deduplicate_successful_tasks and redelivered:
-                if task_request.id in celery.app.trace.successful_requests:
+                if task_request.id in successful_requests:
                     return trace_ok_t(R, I, T, Rstr)
-
-                r = celery.app.trace.AsyncResult(
-                    task_request.id,
-                    app=app,
-                )
+                r = AsyncResult(task_request.id, app=app)
 
                 try:
                     state = r.state
-                except celery.app.trace.BackendGetMetaError:
+                except BackendGetMetaError:
                     pass
                 else:
-                    if state == celery.app.trace.SUCCESS:
-                        celery.app.trace.info(
-                            celery.app.trace.LOG_IGNORED,
-                            {
-                                "id": task_request.id,
-                                "name": celery.app.trace.get_task_name(
-                                    task_request,
-                                    name,
-                                ),
-                                "description": "Task already completed successfully.",
-                            },
-                        )
+                    if state == SUCCESS:
+                        info(LOG_IGNORED, {
+                            'id': task_request.id,
+                            'name': get_task_name(task_request, name),
+                            'description': 'Task already completed successfully.'
+                        })
                         return trace_ok_t(R, I, T, Rstr)
 
             push_task(task)
-
             root_id = task_request.root_id or uuid
-            task_priority = (
-                task_request.delivery_info.get(
-                    "priority",
-                )
-                if inherit_parent_priority
-                else None
-            )
-
+            task_priority = task_request.delivery_info.get('priority') if \
+                inherit_parent_priority else None
             push_request(task_request)
-
             try:
                 # -*- PRE -*-
-                if pre_run_receivers:
-                    celery.app.trace.send_prerun(
-                        sender=task,
-                        task_id=uuid,
-                        task=task,
-                        args=args,
-                        kwargs=kwargs,
-                    )
-
+                if prerun_receivers:
+                    send_prerun(sender=task, task_id=uuid, task=task,
+                                args=args, kwargs=kwargs)
                 AsyncIOPool.run_in_pool(loader_task_init, uuid, task)
-
                 if track_started:
                     task.backend.store_result(
-                        uuid,
-                        {
-                            "pid": pid,
-                            "hostname": hostname,
-                        },
-                        celery.app.trace.STARTED,
+                        uuid, {'pid': pid, 'hostname': hostname}, STARTED,
                         request=task_request,
                     )
 
                 # -*- TRACE -*-
                 try:
                     if task_before_start:
-                        AsyncIOPool.run_in_pool(
-                            task_before_start,
-                            uuid,
-                            args,
-                            kwargs,
-                        )
+                        AsyncIOPool.run_in_pool(task_before_start, uuid, args,
+                                                kwargs)
 
                     R = retval = AsyncIOPool.run_in_pool(fun, *args, **kwargs)
-                    state = celery.app.trace.SUCCESS
-
-                except celery.app.trace.Reject as exc:
-                    I, R = Info(celery.app.trace.REJECTED, exc,), celery.app.trace.ExceptionInfo(
-                        internal=True,
-                    )
+                    state = SUCCESS
+                except Reject as exc:
+                    I, R = Info(REJECTED, exc), ExceptionInfo(internal=True)
                     state, retval = I.state, I.retval
-                    I.handle_reject(
-                        task,
-                        task_request,
-                    )
-                    celery.app.trace.traceback_clear(exc)
-                except celery.app.trace.Ignore as exc:
-                    I, R = Info(celery.app.trace.IGNORED, exc,), celery.app.trace.ExceptionInfo(
-                        internal=True,
-                    )
+                    I.handle_reject(task, task_request)
+                    traceback_clear(exc)
+                except Ignore as exc:
+                    I, R = Info(IGNORED, exc), ExceptionInfo(internal=True)
                     state, retval = I.state, I.retval
                     I.handle_ignore(task, task_request)
-                    celery.app.trace.traceback_clear(exc)
-
-                except celery.app.trace.Retry as exc:
+                    traceback_clear(exc)
+                except Retry as exc:
                     I, R, state, retval = on_error(
-                        task_request,
-                        exc,
-                        uuid,
-                        celery.app.trace.RETRY,
-                        call_errbacks=False,
-                    )
-                    celery.app.trace.traceback_clear(exc)
-
+                        task_request, exc, RETRY, call_errbacks=False)
+                    traceback_clear(exc)
                 except Exception as exc:
-                    I, R, state, retval = on_error(
-                        task_request,
-                        exc,
-                        uuid,
-                    )
-                    celery.app.trace.traceback_clear(exc)
-
+                    I, R, state, retval = on_error(task_request, exc)
+                    traceback_clear(exc)
                 except BaseException:
                     raise
                 else:
@@ -331,134 +265,80 @@ def build_async_tracer(
                         # so that the trail's not added multiple times :(
                         # (Issue #1936)
                         callbacks = task.request.callbacks
-
                         if callbacks:
                             if len(task.request.callbacks) > 1:
-
                                 sigs, groups = [], []
-
                                 for sig in callbacks:
                                     sig = signature(sig, app=app)
-
-                                    if isinstance(sig, celery.app.trace.group):
+                                    if isinstance(sig, group):
                                         groups.append(sig)
                                     else:
                                         sigs.append(sig)
-
                                 for group_ in groups:
                                     group_.apply_async(
                                         (retval,),
-                                        parent_id=uuid,
-                                        root_id=root_id,
-                                        priority=task_priority,
+                                        parent_id=uuid, root_id=root_id,
+                                        priority=task_priority
                                     )
-
                                 if sigs:
-                                    celery.app.trace.group(sigs, app=app,).apply_async(
+                                    group(sigs, app=app).apply_async(
                                         (retval,),
-                                        parent_id=uuid,
-                                        root_id=root_id,
-                                        priority=task_priority,
+                                        parent_id=uuid, root_id=root_id,
+                                        priority=task_priority
                                     )
                             else:
-                                signature(callbacks[0], app=app,).apply_async(
-                                    (retval,),
-                                    parent_id=uuid,
-                                    root_id=root_id,
-                                    priority=task_priority,
+                                signature(callbacks[0], app=app).apply_async(
+                                    (retval,), parent_id=uuid, root_id=root_id,
+                                    priority=task_priority
                                 )
 
                         # execute first task in chain
                         chain = task_request.chain
-
                         if chain:
-                            _chain_signature = signature(chain.pop(), app=app)
-                            _chain_signature.apply_async(
-                                (retval,),
-                                chain=chain,
-                                parent_id=uuid,
-                                root_id=root_id,
-                                priority=task_priority,
+                            _chsig = signature(chain.pop(), app=app)
+                            _chsig.apply_async(
+                                (retval,), chain=chain,
+                                parent_id=uuid, root_id=root_id,
+                                priority=task_priority
                             )
-
                         task.backend.mark_as_done(
-                            uuid,
-                            retval,
-                            task_request,
-                            publish_result,
+                            uuid, retval, task_request, publish_result,
                         )
-
-                    except celery.app.trace.EncodeError as exc:
-                        I, R, state, retval = on_error(
-                            task_request,
-                            exc,
-                            uuid,
-                        )
-
+                    except EncodeError as exc:
+                        I, R, state, retval = on_error(task_request, exc)
                     else:
-                        Rstr = celery.app.trace.saferepr(R, result_repr_maxsize)
+                        Rstr = saferepr(R, resultrepr_maxsize)
                         T = monotonic() - time_start
-
                         if task_on_success:
-                            AsyncIOPool.run_in_pool(
-                                task_on_success,
-                                retval,
-                                uuid,
-                                args,
-                                kwargs,
-                            )
-
+                            AsyncIOPool.run_in_pool(task_on_success, retval,
+                                                    uuid, args, kwargs)
                         if success_receivers:
-                            celery.app.trace.send_success(
-                                sender=task,
-                                result=retval,
-                            )
-
+                            send_success(sender=task, result=retval)
                         if _does_info:
-                            celery.app.trace.info(
-                                celery.app.trace.LOG_SUCCESS,
-                                {
-                                    "id": uuid,
-                                    "name": celery.app.trace.get_task_name(
-                                        task_request,
-                                        name,
-                                    ),
-                                    "return_value": Rstr,
-                                    "runtime": T,
-                                    "args": celery.app.trace.safe_repr(args),
-                                    "kwargs": celery.app.trace.safe_repr(kwargs),
-                                },
-                            )
+                            info(LOG_SUCCESS, {
+                                'id': uuid,
+                                'name': get_task_name(task_request, name),
+                                'return_value': Rstr,
+                                'runtime': T,
+                                'args': safe_repr(args),
+                                'kwargs': safe_repr(kwargs),
+                            })
 
                 # -* POST *-
                 if state not in IGNORE_STATES:
                     if task_after_return:
-                        AsyncIOPool.run_in_pool(
-                            task_after_return,
-                            state,
-                            retval,
-                            uuid,
-                            args,
-                            kwargs,
-                            None,
+                        AsyncIOPool.run_in_pool(task_after_return,
+                            state, retval, uuid, args, kwargs, None,
                         )
             finally:
                 try:
-                    if post_run_receivers:
-                        celery.app.trace.send_postrun(
-                            sender=task,
-                            task_id=uuid,
-                            task=task,
-                            args=args,
-                            kwargs=kwargs,
-                            retval=retval,
-                            state=state,
-                        )
-
+                    if postrun_receivers:
+                        send_postrun(sender=task, task_id=uuid, task=task,
+                                     args=args, kwargs=kwargs,
+                                     retval=retval, state=state)
                 finally:
                     pop_task()
                     pop_request()
-
                     if not eager:
                         try:
                             task.backend.process_cleanup()
@@ -466,46 +346,18 @@ def build_async_tracer(
                         except (KeyboardInterrupt, SystemExit, MemoryError):
                             raise
                         except Exception as exc:
-                            celery.app.trace.logger.error(
-                                "Process cleanup failed: %r",
-                                exc,
-                                exc_info=True,
-                            )
-
+                            logger.error('Process cleanup failed: %r', exc,
+                                         exc_info=True)
         except MemoryError:
             raise
-
         except Exception as exc:
-            celery.app.trace._signal_internal_error(
-                task,
-                uuid,
-                args,
-                kwargs,
-                request,
-                exc,
-            )
-
+            _signal_internal_error(task, uuid, args, kwargs, request, exc)
             if eager:
                 raise
-
-            R = celery.app.trace.report_internal_error(
-                task,
-                exc,
-            )
-
+            R = report_internal_error(task, exc)
             if task_request is not None:
-                I, _, _, _ = AsyncIOPool.run_in_pool(
-                    on_error,
-                    task_request,
-                    exc,
-                    uuid,
-                )
-
-        return trace_ok_t(
-            R,
-            I,
-            T,
-            Rstr,
-        )
+                I, _, _, _ = AsyncIOPool.run_in_pool(on_error, task_request,
+                                                     exc)
+        return trace_ok_t(R, I, T, Rstr)
 
     return trace_task
