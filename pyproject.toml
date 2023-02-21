@@ -35,7 +35,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 # Supported Python versions
-python = ">=3.8,<3.11"
+python = ">=3.8,<3.12"
 
 # Core project dependencies
 celery = "^5"
