@@ -11,7 +11,7 @@ from celery_aio_pool.pool import AsyncIOPool
 from celery_aio_pool.tracer import build_async_tracer
 
 __pkg_name__ = "celery-aio-pool"
-__version__ = "0.1.0-rc.4"  # x-release-please-version
+__version__ = "0.1.0-rc.5"  # x-release-please-version
 
 __all__ = (
     "AsyncIOPool",
