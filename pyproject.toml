@@ -6,6 +6,7 @@ license = "AGPL-3.0-or-later"
 authors = [
   "Mark S. <the@wondersmithd.dev>",
   "Shaheed Haque <shaheedhaque@gmail.com>",
+  "Thijs Kramer <1274867+thijskramer@users.noreply.github.com>",
 ]
 readme = "README.md"
 homepage = "https://github.com/the-wondersmith/celery-aio-pool"
