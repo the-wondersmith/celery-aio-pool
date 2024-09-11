@@ -15,6 +15,8 @@ from typing import (
     Callable,
     Optional,
     Union,
+    Dict,
+    Tuple,
 )
 
 # Third-Party Imports
@@ -39,17 +41,32 @@ from celery_aio_pool.types import (
 __all__ = ("AsyncIOPool",)
 
 
-WorkerPoolInfo = dict[
+WorkerPoolInfo = Dict[
     str,
     Optional[
         Union[
             int,
             bool,
-            tuple[int, ...],
+            Tuple[int, ...],
             aio.AbstractEventLoop,
         ]
     ],
 ]
+
+# test if aio.to_thread exists and if not - override it
+if not callable(getattr(aio, "to_thread", None)):
+    import contextvars
+    import functools
+
+    # Backport of `asyncio.to_thread` for Python 3.8
+    async def aio_to_thread_backport(func, /, *args, **kwargs):
+        # FROM: https://stackoverflow.com/questions/68523752/python-module-asyncio-has-no-attribute-to-thread
+        loop = aio.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+        return await loop.run_in_executor(None, func_call)
+
+    aio.to_thread = aio_to_thread_backport
 
 
 class AsyncIOPool(celery.concurrency.solo.TaskPool):
