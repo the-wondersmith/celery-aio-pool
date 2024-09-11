@@ -15,6 +15,8 @@ from typing import (
     Callable,
     Optional,
     Union,
+    Dict,
+    Tuple,
 )
 
 # Third-Party Imports
@@ -39,13 +41,13 @@ from celery_aio_pool.types import (
 __all__ = ("AsyncIOPool",)
 
 
-WorkerPoolInfo = dict[
+WorkerPoolInfo = Dict[
     str,
     Optional[
         Union[
             int,
             bool,
-            tuple[int, ...],
+            Tuple[int, ...],
             aio.AbstractEventLoop,
         ]
     ],
