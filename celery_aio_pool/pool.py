@@ -54,9 +54,7 @@ WorkerPoolInfo = Dict[
 ]
 
 # test if aio.to_thread exists and if not - override it
-try:
-    aio.to_thread
-except AttributeError:
+if not callable(getattr(aio, "to_thread", None)):
     import contextvars
     import functools
 
