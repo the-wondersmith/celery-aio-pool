@@ -43,10 +43,6 @@ python = ">=3.8,<3.13"
 # Core project dependencies
 celery = "^5"
 
-# Dependencies specific to Python 3.8
-contextvars = { version = "*", python = "3.8" }
-functools = { version = "*", python = "3.8" }
-
 
 [tool.poetry.group.dev.dependencies]
 # Formatting & Linting
